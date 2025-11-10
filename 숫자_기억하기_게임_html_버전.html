@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>숫자 기억하기 게임 – 3개</title>
+  <style>
+    :root {
+      --bg: #0f172a; /* slate-900 */
+      --panel: #111827; /* gray-900 */
+      --panel-2: #1f2937; /* gray-800 */
+      --text: #e5e7eb; /* gray-200 */
+      --accent: #22d3ee; /* cyan-400 */
+      --good: #34d399; /* emerald-400 */
+      --bad: #f87171; /* red-400 */
+      --muted: #94a3b8; /* slate-400 */
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, sans-serif;
+      background: linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+      color: var(--text);
+      display: grid; place-items: center; min-height: 100dvh; padding: 24px;
+    }
+    .card {
+      width: 100%; max-width: 680px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid #0b1220; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      padding: 24px; backdrop-filter: blur(6px);
+    }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    p.lead { margin: 0 0 16px; color: var(--muted); }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .field { background: #0b1020; border: 1px solid #1e293b; border-radius: 10px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; }
+    .field label { font-size: 14px; color: var(--muted); }
+    .field input { width: 64px; background: transparent; border: none; outline: none; color: var(--text); font-size: 16px; text-align: center; }
+    button { cursor: pointer; border: none; border-radius: 12px; padding: 10px 16px; font-weight: 700; color: #06202a; background: var(--accent); }
+    button.secondary { background: #334155; color: var(--text); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .screen { margin-top: 16px; border: 1px dashed #334155; border-radius: 12px; padding: 20px; min-height: 120px; display: grid; place-items: center; text-align: center; }
+    .numbers { font-size: clamp(28px, 7vw, 56px); letter-spacing: .06em; font-weight: 800; }
+    .inputs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .inputs input { width: 84px; height: 48px; font-size: 20px; border-radius: 10px; border: 1px solid #334155; background: #0b1020; color: var(--text); text-align: center; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .result { margin-top: 12px; font-weight: 700; }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .hint { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🧠 숫자 기억하기 게임</h1>
+    <p class="lead">3개의 숫자를 <b>잠깐</b> 보여드릴게요. 사라지면 <b>순서대로</b> 적어 보세요!</p>
+
+    <div class="row" style="margin-bottom:12px;">
+      <div class="field">
+        <label for="count">숫자 개수</label>
+        <input id="count" type="number" min="1" max="6" value="3" />
+      </div>
+      <div class="field">
+        <label for="seconds">보여주는 시간(초)</label>
+        <input id="seconds" type="number" min="1" max="10" value="3" />
+      </div>
+      <button id="startBtn">시작하기</button>
+      <button id="resetBtn" class="secondary" disabled>다시하기</button>
+    </div>
+
+    <div id="screen" class="screen">
+      <div class="muted">설정을 정하고 <b>시작하기</b>를 눌러 주세요.</div>
+    </div>
+
+    <div id="result" class="result"></div>
+    <div class="hint">팁: 숫자 개수나 시간을 바꿔 난이도를 조절해 보세요.</div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const screen = document.getElementById('screen');
+    const result = document.getElementById('result');
+    const countEl = document.getElementById('count');
+    const secondsEl = document.getElementById('seconds');
+
+    let answer = [];
+    let inputs = [];
+    let timerHandle = null;
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function genNumbers(n) {
+      // 두 자리 숫자(10~99), 중복 허용
+      return Array.from({ length: n }, () => randInt(10, 99));
+    }
+
+    function showNumbers(nums) {
+      screen.innerHTML = `<div class="numbers">${nums.join(' ')}</div>`;
+    }
+
+    function showInputs(n) {
+      const wrap = document.createElement('div');
+      wrap.className = 'inputs';
+      inputs = [];
+      for (let i = 0; i < n; i++) {
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.placeholder = (i+1)+"번째";
+        inp.inputMode = 'numeric';
+        inp.min = 0; inp.max = 99;
+        inputs.push(inp);
+        wrap.appendChild(inp);
+      }
+      const checkBtn = document.createElement('button');
+      checkBtn.textContent = '채점하기';
+      checkBtn.style.marginTop = '12px';
+      checkBtn.onclick = grade;
+
+      screen.innerHTML = '';
+      screen.appendChild(wrap);
+      screen.appendChild(checkBtn);
+
+      // 첫 입력에 포커스
+      setTimeout(() => inputs[0].focus(), 0);
+    }
+
+    function grade() {
+      const guesses = inputs.map(i => Number(i.value));
+      if (guesses.some(g => Number.isNaN(g))) {
+        result.innerHTML = '<span class="bad">모든 칸에 숫자를 입력해 주세요.</span>';
+        return;
+      }
+      let correct = 0;
+      for (let i = 0; i < answer.length; i++) {
+        if (guesses[i] === answer[i]) correct++;
+      }
+      const isPerfect = (correct === answer.length);
+      result.innerHTML = isPerfect
+        ? `<span class="good">🎉 완벽해요! 전부 맞췄어요!</span>`
+        : `<span class="bad">🙂 ${correct}/${answer.length}개 맞았어요! 다음에 또 도전!</span>`;
+
+      // 정답/내 답 표시
+      const info = document.createElement('div');
+      info.className = 'muted';
+      info.style.marginTop = '6px';
+      info.textContent = `정답: ${answer.join(' ')} | 내 답: ${guesses.join(' ')}`;
+      result.appendChild(info);
+
+      resetBtn.disabled = false;
+    }
+
+    function startGame() {
+      result.textContent = '';
+      resetBtn.disabled = true;
+      const n = Math.max(1, Math.min(6, Number(countEl.value) || 3));
+      const sec = Math.max(1, Math.min(10, Number(secondsEl.value) || 3));
+      countEl.value = n; secondsEl.value = sec;
+
+      answer = genNumbers(n);
+      showNumbers(answer);
+
+      // sec초 뒤 입력칸으로 전환
+      clearTimeout(timerHandle);
+      timerHandle = setTimeout(() => {
+        showInputs(n);
+      }, sec * 1000);
+    }
+
+    function resetGame() {
+      // 바로 새 라운드 시작
+      startGame();
+    }
+
+    startBtn.addEventListener('click', startGame);
+    resetBtn.addEventListener('click', resetGame);
+  </script>
+</body>
+</html>
